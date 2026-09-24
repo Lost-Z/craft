@@ -28,6 +28,92 @@ const ENV_OPTIONS: { value: DeploymentFilterEnvironment; label: string }[] = [
   { value: 'development', label: 'Development' },
 ];
 
+/**
+ * Search, status, and environment filters for the deployments list.
+ *
+ * This is a controlled component: it owns no filter state itself. The parent
+ * owns `filters` and is the reference implementation for the codebase's
+ * **URL-synced filters** convention (see "URL-synced filters" in
+ * CONTRIBUTING.md), which makes filtered views shareable and refresh-safe:
+ *
+ * 1. Derive the initial filter state from `useSearchParams()` (the URL is the
+ *    source of truth on first render; unknown values fall back to defaults).
+ * 2. Keep the live state in React so typing stays responsive.
+ * 3. Write changes back with a debounced `router.replace(..., { scroll: false })`
+ *    — `replace`, not `push`, so each keystroke doesn't add a history entry.
+ *    Omit default values so an unfiltered view has a clean URL.
+ *
+ * `useSearchParams()` makes the consuming page a Client Component and must sit
+ * under a `<Suspense>` boundary. A Server Component page can instead read its
+ * `searchParams` prop and pass them down as `initialFilters`, so the first,
+ * server-rendered list is already filtered.
+ *
+ * @example
+ * ```tsx
+ * // app/app/deployments/page.tsx (Server Component)
+ * export default function DeploymentsPage({
+ *   searchParams,
+ * }: { searchParams: Record<string, string | undefined> }) {
+ *   return (
+ *     <Suspense fallback={<DeploymentListSkeleton />}>
+ *       <DeploymentsView initialFilters={filtersFromParams(new URLSearchParams(searchParams as Record<string, string>))} />
+ *     </Suspense>
+ *   );
+ * }
+ *
+ * // DeploymentsView.tsx
+ * 'use client';
+ *
+ * const DEFAULT_FILTERS: DeploymentFilters = { status: 'all', environment: 'all', search: '' };
+ *
+ * function filtersFromParams(params: URLSearchParams): DeploymentFilters {
+ *   return {
+ *     status: (params.get('status') as DeploymentFilterStatus) ?? DEFAULT_FILTERS.status,
+ *     environment: (params.get('env') as DeploymentFilterEnvironment) ?? DEFAULT_FILTERS.environment,
+ *     search: params.get('q') ?? DEFAULT_FILTERS.search,
+ *   };
+ * }
+ *
+ * function filtersToQueryString(filters: DeploymentFilters): string {
+ *   const params = new URLSearchParams();
+ *   if (filters.status !== DEFAULT_FILTERS.status) params.set('status', filters.status);
+ *   if (filters.environment !== DEFAULT_FILTERS.environment) params.set('env', filters.environment);
+ *   if (filters.search) params.set('q', filters.search);
+ *   return params.toString();
+ * }
+ *
+ * export function DeploymentsView({ initialFilters }: { initialFilters?: DeploymentFilters }) {
+ *   const searchParams = useSearchParams();
+ *   const router = useRouter();
+ *   const pathname = usePathname();
+ *   const [filters, setFilters] = useState<DeploymentFilters>(
+ *     () => initialFilters ?? filtersFromParams(searchParams),
+ *   );
+ *
+ *   // Debounced URL write: only the settled value reaches the address bar.
+ *   useEffect(() => {
+ *     const handle = setTimeout(() => {
+ *       const qs = filtersToQueryString(filters);
+ *       if (qs !== searchParams.toString()) {
+ *         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+ *       }
+ *     }, 300);
+ *     return () => clearTimeout(handle);
+ *   }, [filters, pathname, router, searchParams]);
+ *
+ *   const visible = applyFilters(deployments, filters);
+ *
+ *   return (
+ *     <DeploymentFiltersBar
+ *       filters={filters}
+ *       onChange={setFilters}
+ *       totalCount={deployments.length}
+ *       filteredCount={visible.length}
+ *     />
+ *   );
+ * }
+ * ```
+ */
 export function DeploymentFiltersBar({
   filters,
   onChange,
