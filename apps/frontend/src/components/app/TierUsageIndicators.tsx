@@ -7,18 +7,18 @@ interface TierUsageIndicatorsProps {
   activeCustomDomains: number;
 }
 
-type UsageState = 'normal' | 'warning' | 'critical';
+export type UsageState = 'normal' | 'warning' | 'critical';
 
-interface UsageInfo {
+export interface UsageInfo {
   used: number;
   limit: number;
   percent: number;
   state: UsageState;
 }
 
-const WARNING_THRESHOLD_PERCENT = 80;
+export const WARNING_THRESHOLD_PERCENT = 80;
 
-function getUsageInfo(used: number, limit: number): UsageInfo {
+export function getUsageInfo(used: number, limit: number): UsageInfo {
   if (limit === -1) {
     return { used, limit, percent: 0, state: 'normal' };
   }
